@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -52,39 +53,88 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, con
         await update.message.reply_text(WELCOME_MESSAGE, parse_mode=PARSE_MODE)
         return
 
+    query = None
     args = " ".join(context.args) if context.args else ""
     symbols = [extract_symbol(arg) for arg in context.args if extract_symbol(arg)] if args else []
 
-    logger.info(f"Command: {config.description}, Args: {args}, Extracted Symbols: {symbols}")
+    logger.info(f"Command: {config.description}, Extracted Symbols: {symbols}, Len Symbols: {len(symbols)}")
 
+    # Validate symbol count
     if config.requires_symbol:
-        if len(symbols) < config.required_symbols_count:
-            message = config.no_args_message.format(update.message.text.split()[0][1:])
+        if len(symbols) < config.required_symbols_min:
+            message = f"Che, mandaste pocos tickers. Necesito al menos {config.required_symbols_min}. Ejemplo: /{update.message.text.split()[0][1:]} {' '.join(['$SYM'] * config.required_symbols_min)}"
             await update.message.reply_text(message)
             return
-        elif len(symbols) > config.required_symbols_count:
-            await update.message.reply_text(f"Che, mandaste demasiados tickers. Necesito {config.required_symbols_count}, loco.")
+        if config.required_symbols_max and len(symbols) > config.required_symbols_max:
+            message = f"Che, mandaste demasiados tickers. Máximo {config.required_symbols_max}."
+            await update.message.reply_text(message)
             return
-
+        
     if config.query_template:
         try:
-            if config.required_symbols_count == 0 and not symbols:  # Handle /noticias without ticker
+            if config.required_symbols_min == 0 and not symbols:  # Handle /noticias without ticker
                 query = "Dame un resumen de las noticias del mercado financiero en general"
-            elif config.required_symbols_count == 1:
+
+            elif config.required_symbols_min == 1 and len(symbols) == 1:
                 query = config.query_template.format(symbol=symbols[0])
-            elif config.required_symbols_count == 2:
-                query = config.query_template.format(symbol1=symbols[0], symbol2=symbols[1])
+
+            elif config.required_symbols_min >= 2 and len(symbols) >= 2:
+                # query = config.query_template.format(symbols=symbols)
+                query = config.query_template.format(symbols=" ".join(symbols))
+
             else:
                 query = config.query_template  # Fallback
+
             response_text = await get_agent_response(config.agent, query)
+
         except IndexError:
-            response_text = "Che, algo salió mal con los tickers. Asegurate de mandarlos bien, loco."
+            response_text = "Che, algo salió mal con los tickers. Asegurate de mandarlos bien."
         except KeyError as e:
-            response_text = f"Error en el formato, loco: {str(e)}. Usá el ejemplo del comando."
+            response_text = f"Error en el formato: {str(e)}. Usá el ejemplo del comando."
     else:
         response_text = "Comando no implementado correctamente, che."
 
     await update.message.reply_text(response_text)
+
+# async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, config: CommandConfig) -> None:
+#     """Generic handler for bot commands supporting variable symbol counts."""
+#     if config.agent is None:  # Special case for /start
+#         await update.message.reply_text(WELCOME_MESSAGE, parse_mode=PARSE_MODE)
+#         return
+
+#     args = " ".join(context.args) if context.args else ""
+#     symbols = [extract_symbol(arg) for arg in context.args if extract_symbol(arg)] if args else []
+
+#     logger.info(f"Command: {config.description}, Args: {args}, Extracted Symbols: {symbols}")
+
+#     if config.requires_symbol:
+#         if len(symbols) < config.required_symbols_min:
+#             message = config.no_args_message.format(update.message.text.split()[0][1:])
+#             await update.message.reply_text(message)
+#             return
+#         elif len(symbols) > config.required_symbols_min:
+#             await update.message.reply_text(f"Che, mandaste demasiados tickers. Necesito {config.required_symbols_count}, loco.")
+#             return
+
+#     if config.query_template:
+#         try:
+#             if config.required_symbols_min == 0 and not symbols:  # Handle /noticias without ticker
+#                 query = "Dame un resumen de las noticias del mercado financiero en general"
+#             elif config.required_symbols_min == 1:
+#                 query = config.query_template.format(symbol=symbols[0])
+#             elif config.required_symbols_min == 2:
+#                 query = config.query_template.format(symbol1=symbols[0], symbol2=symbols[1])
+#             else:
+#                 query = config.query_template  # Fallback
+#             response_text = await get_agent_response(config.agent, query)
+#         except IndexError:
+#             response_text = "Che, algo salió mal con los tickers. Asegurate de mandarlos bien, loco."
+#         except KeyError as e:
+#             response_text = f"Error en el formato, loco: {str(e)}. Usá el ejemplo del comando."
+#     else:
+#         response_text = "Comando no implementado correctamente, che."
+
+#     await update.message.reply_text(response_text)
 
 #----------------------------------------------------------------------------
 

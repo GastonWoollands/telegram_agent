@@ -20,6 +20,8 @@ class CommandConfig:
     query_template: str
     requires_symbol: bool = True
     required_symbols_count: int = 1
+    required_symbols_min: int = 1
+    required_symbols_max: int = None
     no_args_message: str = "Por favor, especifica un símbolo válido. Ejemplo: /{} $AAPL"
 
 #----------------------------------------------------------------------------
@@ -31,7 +33,7 @@ COMMANDS = {
         agent=None,
         query_template="",
         requires_symbol=False,
-        required_symbols_count=0
+        required_symbols_min=0
     ),
     "precio": CommandConfig(
         description="Get current stock price",
@@ -44,7 +46,7 @@ COMMANDS = {
         agent=agents["general"],
         query_template="Dame un resumen de las últimas noticias de {symbol}",
         requires_symbol=False,
-        required_symbols_count=0,
+        required_symbols_min=0,
         no_args_message=None
     ),
     "tecnicos": CommandConfig(
@@ -52,21 +54,22 @@ COMMANDS = {
         agent=agents["technical"],
         query_template="Dame el resumen de los análisis técnicos de {symbol}",
         requires_symbol=True,
-        required_symbols_count=1
+        required_symbols_min=1
     ),
     "fundamentales": CommandConfig(
         description="Get fundamental analysis",
         agent=agents["fundamental"],
         query_template="Dame el resumen detallado de análisis fundamental de {symbol}",
         requires_symbol=True,
-        required_symbols_count=1
+        required_symbols_min=1
     ),
     "correlacion": CommandConfig(
         description="Get correlation between two assets",
         agent=agents["pairs_and_volatility"],
-        query_template="Dame la correlación entre {symbol1} y {symbol2}",
+        query_template="Dame la correlacion entre los siguientes tickers: {symbols}",
+        # query_template="Dame la correlación entre {symbol1} y {symbol2}",
         requires_symbol=True,
-        required_symbols_count=2,
+        required_symbols_min=2,
         no_args_message="Mandáme dos tickers, loco. Ejemplo: /correlacion $SPY $AAPL"
     ),
     "volatilidad": CommandConfig(
@@ -74,7 +77,7 @@ COMMANDS = {
         agent=agents["pairs_and_volatility"],
         query_template="Dame resumen de volatilidad de {symbol}",
         requires_symbol=True,
-        required_symbols_count=1,
+        required_symbols_min=1,
         no_args_message="Mandáme un ticker, loco. Ejemplo: /volatilidad $AAPL"
     )
 }

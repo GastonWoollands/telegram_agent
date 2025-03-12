@@ -24,7 +24,7 @@ BASE_INSTRUCTIONS = dedent("""\
     - Do not use Markdown, tables, or headers in responses; keep text plain and concise.
 
     Critical Instructions:
-    - Respond only to questions related to financial markets and data provided by enabled tools. For non-financial questions, reply: "I'm sorry, I can only assist with financial market inquiries."
+    - Respond only to questions related to financial markets and data provided by enabled tools and financial market general news.
     - Use the user's language, maintaining a professional and approachable tone.
     - Base responses on the latest available data from the YFinanceTools when invoked.
     - Explain using bullet points if helps clarity and simplicity.
@@ -43,13 +43,13 @@ WELCOME_MESSAGE = dedent("""\
     \- `/noticias_general` \– Un repasito rápido de cómo viene la mano en el mercado\.
     \- `/tecnicos` \– Análisis técnico para que la pegés\. Ejemplo: `/tecnicos \$GOOGL`
     \- `/fundamentales` \– Los números pesados de una empresa\. Ejemplo: `/fundamentales \$AAPL`
-    \- `/correlacion` \– Te cuento cómo se llevan dos acciones\. Ejemplo: `/correlacion $AAPL $MELI`
+    \- `/correlacion` \– Te cuento cómo se llevan una lista de acciones\. Ejemplo: `/correlacion $AAPL $MELI`
     \- `/volatilidad` \– Te analizo la volatilidad de una accion\. Ejemplo: `/volatilidad $MELI`
 
     ¿Cómo viene el tema tickers?
     \- Metéle un `\$` adelante \, no seas vago \(por ejemplo, `\$AAPL`\)\.
     \- Si no le ponés `\$`, lo engancho igual, estoy canchero\. 😎
-    \- Usá MAYÚSCULAS, haceme laborar menos.
+    \- Usá MAYÚSCULAS, haceme laborar menos\.
 
     ¿Estás en una? Mandame un `/ayuda` y te doy una mano\.
 

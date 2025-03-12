@@ -1,14 +1,10 @@
 import json
+import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
 from agno.tools import Toolkit
-
-try:
-    import yfinance as yf
-except ImportError:
-    raise ImportError("`yfinance` not installed. Please install using `pip install yfinance`.")
-
+import yfinance as yf
 
 class YFinanceTools(Toolkit):
     def __init__(
@@ -246,7 +242,46 @@ class YFinanceTools(Toolkit):
         except Exception as e:
             return f"Error fetching company news for {symbol}: {e}"
 
+    # def get_correlation(self, symbols: list, period: str = "1y", interval: str = "1d") -> str:
+    #     """Calculate Pearson and Spearman correlations between multiple assets efficiently."""
+    #     if not isinstance(symbols, list) or len(symbols) < 2:
+    #         return json.dumps({"error": "At least two symbols are required for correlation analysis."}, indent=2)
 
+    #     try:
+    #         tickers = yf.Tickers(symbols)
+    #         df = tickers.history(period=period, interval=interval, actions=False)['Close']
+    #     except ValueError as e:
+    #         return json.dumps({"error": f"Invalid symbol(s) or fetch error: {str(e)}"}, indent=2)
+    #     except Exception as e:
+    #         return json.dumps({"error": f"Invalid symbol(s) or fetch error: {str(e)}"}, indent=2)
+
+    #     returns = df.pct_change().dropna(how='any')
+    #     if returns.empty or len(returns) < 2:
+    #         return json.dumps({"error": f"Invalid symbol(s) or fetch error: {str(e)}"}, indent=2)
+        
+    #     pearson_corr = returns.corr(method='pearson').replace(np.nan, 0.0).to_dict()
+
+    #     ranks = returns.rank().values
+    #     spearman_corr = pd.DataFrame(
+    #         np.corrcoef(ranks.T),
+    #         index=returns.columns,
+    #         columns=returns.columns
+    #     ).replace(np.nan, 0.0).to_dict()
+
+    #     # Compile metadata
+    #     metadata = {
+    #         "symbols": list(returns.columns),
+    #         "period": period,
+    #         "interval": interval,
+    #         "start_date": returns.index[0].strftime('%Y-%m-%d'),
+    #         "end_date": returns.index[-1].strftime('%Y-%m-%d'),
+    #         "data_points": len(returns),
+    #         "pearson_correlations": pearson_corr,
+    #         "spearman_correlations": spearman_corr
+    #     }
+
+    #     return json.dumps(metadata, indent=2)
+    
     def get_correlation(self, symbol_1: str, symbol_2: str, period: str = "1y", interval: str = "1d") -> str:
         """Use this function to get company correlation between two assets
 
