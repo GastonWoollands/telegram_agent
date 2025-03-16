@@ -138,6 +138,11 @@ async def volatility(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 #----------------------------------------------------------------------------
 
+async def options(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await handle_command(update, context, COMMANDS["opciones"])
+
+#----------------------------------------------------------------------------
+
 def setup_application() -> ApplicationBuilder:
     """Initialize and configure the Telegram application."""
     token = os.getenv("TELEGRAM_TOKEN")
@@ -158,7 +163,8 @@ def register_handlers(app):
         "tecnicos": technical_analysis,
         "fundamentales": fundamental_analysis,
         "correlacion": correlation,
-        "volatilidad": volatility
+        "volatilidad": volatility,
+        "optiones": options
     }
     for command, handler in handlers.items():
         app.add_handler(CommandHandler(command, handler))

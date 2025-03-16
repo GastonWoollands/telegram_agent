@@ -20,6 +20,7 @@ class YFinanceTools(Toolkit):
         historical_prices: bool = False,
         correlation: bool = False,
         volatility: bool = True,
+        options_sentiment: bool = False,
         enable_all: bool = False,
     ):
         super().__init__(name="yfinance_tools")
@@ -46,6 +47,8 @@ class YFinanceTools(Toolkit):
             self.register(self.get_correlation)
         if volatility or enable_all:
             self.register(self.get_volatility)
+        if options_sentiment or enable_all:
+            self.register(self.get_options_sentiment)
 
     def get_current_stock_price(self, symbol: str) -> str:
         """
@@ -588,3 +591,95 @@ class YFinanceTools(Toolkit):
 
         except Exception as e:
             return json.dumps({"error": f"Error processing {symbol}: {str(e)}"}, indent=2)
+
+    def get_options_sentiment(
+        self, 
+        symbol: str, 
+        max_expirations: int = 5, 
+        iv_threshold: float = 0.3, 
+        skew_threshold: float = 0.1
+    ) -> str:
+        """Fetch and analyze options chain data to determine bullish or bearish sentiment for a stock."""
+        try:
+            ticker = yf.Ticker(symbol)
+            expiration_dates = ticker.options[:max_expirations]
+            
+            if not expiration_dates:
+                return json.dumps({"error": f"No options data available for {symbol}"}, indent=2)
+
+            sentiment_data = {}
+            for exp_date in expiration_dates:
+                opt_chain = ticker.option_chain(exp_date)
+                calls = opt_chain.calls
+                puts = opt_chain.puts
+
+                # Open Interest
+                call_oi = calls['openInterest'].sum() if 'openInterest' in calls.columns else 0
+                put_oi = puts['openInterest'].sum() if 'openInterest' in puts.columns else 0
+                total_oi = call_oi + put_oi
+
+                # Volume
+                call_vol = calls['volume'].sum() if 'volume' in calls.columns else 0
+                put_vol = puts['volume'].sum() if 'volume' in puts.columns else 0
+                total_vol = call_vol + put_vol
+
+                # Put-Call Ratios
+                pc_oi_ratio = put_oi / call_oi if call_oi > 0 else float('inf')
+                pc_vol_ratio = put_vol / call_vol if call_vol > 0 else float('inf')
+
+                call_iv = calls['impliedVolatility'].mean() if 'impliedVolatility' in calls.columns else 0
+                put_iv = puts['impliedVolatility'].mean() if 'impliedVolatility' in puts.columns else 0
+                avg_iv = (call_iv + put_iv) / 2 if call_iv > 0 and put_iv > 0 else max(call_iv, put_iv)
+
+                iv_skew = put_iv - call_iv if call_iv > 0 and put_iv > 0 else 0
+
+                sentiment_score = 0
+                sentiment_label = "Neutral"
+
+                if pc_oi_ratio > 1.2:
+                    sentiment_score -= 1
+                elif pc_oi_ratio < 0.8:
+                    sentiment_score += 1
+
+                if pc_vol_ratio > 1.2:
+                    sentiment_score -= 1
+                elif pc_vol_ratio < 0.8:
+                    sentiment_score += 1
+
+                if avg_iv > iv_threshold:
+                    sentiment_score -= 1 if iv_skew > skew_threshold else 1 
+
+                # Determine Sentiment Label
+                if sentiment_score >= 2:
+                    sentiment_label = "strong bullish"
+                elif sentiment_score == 1:
+                    sentiment_label = "bullish"
+                elif sentiment_score <= -2:
+                    sentiment_label = "strong bearish"
+                elif sentiment_score == -1:
+                    sentiment_label = "bearish"
+
+                sentiment_data[exp_date] = {
+                    "put_call_ratio_oi": round(pc_oi_ratio, 2) if call_oi > 0 else "N/A",
+                    "put_call_ratio_vol": round(pc_vol_ratio, 2) if call_vol > 0 else "N/A",
+                    "call_open_interest": int(call_oi),
+                    "put_open_interest": int(put_oi),
+                    "total_open_interest": int(total_oi),
+                    "call_volume": int(call_vol),
+                    "put_volume": int(put_vol),
+                    "total_volume": int(total_vol),
+                    "avg_implied_volatility": round(avg_iv * 100, 2),
+                    "iv_skew": round(iv_skew * 100, 2),
+                    "sentiment_score": sentiment_score,
+                    "sentiment": sentiment_label
+                }
+
+            metadata = {
+                "symbol": symbol,
+                "expiration_dates_analyzed": len(expiration_dates),
+                "options_sentiment": sentiment_data
+            }
+            return json.dumps(metadata, indent=2)
+
+        except Exception as e:
+            return json.dumps({"error": f"Error fetching options sentiment for {symbol}: {str(e)}"}, indent=2)

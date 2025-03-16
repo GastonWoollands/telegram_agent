@@ -7,7 +7,8 @@ agents = {
     "general"             : create_financial_agent("general"),
     "technical"           : create_financial_agent("technical"),
     "fundamental"         : create_financial_agent("fundamental"),
-    "pairs_and_volatility": create_financial_agent("pairs_and_volatility")
+    "pairs_and_volatility": create_financial_agent("pairs_and_volatility"),
+    "options"             : create_financial_agent("options")
 }
 
 #----------------------------------------------------------------------------
@@ -67,10 +68,9 @@ COMMANDS = {
         description="Get correlation between two assets",
         agent=agents["pairs_and_volatility"],
         query_template="Dame la correlacion entre los siguientes tickers: {symbols}",
-        # query_template="Dame la correlación entre {symbol1} y {symbol2}",
         requires_symbol=True,
         required_symbols_min=2,
-        no_args_message="Mandáme dos tickers, loco. Ejemplo: /correlacion $SPY $AAPL"
+        no_args_message="Mandáme dos tickers. Ejemplo: /correlacion $^SPY $AAPL"
     ),
     "volatilidad": CommandConfig(
         description="Get volatility for the asset",
@@ -78,6 +78,15 @@ COMMANDS = {
         query_template="Dame resumen de volatilidad de {symbol}",
         requires_symbol=True,
         required_symbols_min=1,
-        no_args_message="Mandáme un ticker, loco. Ejemplo: /volatilidad $AAPL"
-    )
+        no_args_message="Mandáme un ticker. Ejemplo: /volatilidad $AAPL"
+    ),
+    "opciones": CommandConfig(
+        description="Get options analysis for the asset",
+        agent=agents["options"],
+        query_template="Dame analisis de opciones de {symbol}",
+        requires_symbol=True,
+        required_symbols_min=1,
+        no_args_message="Mandáme un ticker. Ejemplo: /opciones $AAPL"
+    ),
+
 }

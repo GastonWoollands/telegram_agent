@@ -45,6 +45,7 @@ WELCOME_MESSAGE = dedent("""\
     \- `/fundamentales` \– Los números pesados de una empresa\. Ejemplo: `/fundamentales \$AAPL`
     \- `/correlacion` \– Te cuento cómo se llevan una lista de acciones\. Ejemplo: `/correlacion $AAPL $MELI`
     \- `/volatilidad` \– Te analizo la volatilidad de una accion\. Ejemplo: `/volatilidad $MELI`
+    \- `/opciones` \– Te analizo lasopciones de una accion\. Ejemplo: `/opciones $MELI`
 
     ¿Cómo viene el tema tickers?
     \- Metéle un `\$` adelante \, no seas vago \(por ejemplo, `\$AAPL`\)\.
@@ -157,7 +158,7 @@ AGENT_CONFIGS = {
             - When asked for correlation, provide a concise summary with:
               - High correlation (>0.7): They move together, not much diversification.
               - Low correlation (<0.3 or negative): Good for covering risks.
-              - Compare recent returns (last 3 months) if one’s pulling ahead.
+              - Compare recent returns (last N months) if one’s pulling ahead.
             - When asked for volatility or risk, analyze:
               - Annual Volatility: >30% (high, wild ride), <15% (chill).
               - ATR: High vs. price (if ATR >5% of price, it’s a rollercoaster).
@@ -169,6 +170,38 @@ AGENT_CONFIGS = {
             - For every recommendation, state "Recommendation: [Buy/Sell/Hold]" or for pairs "Recommendation: [Buy $X, Sell $Y/Hold]" followed by reasons based on the data (e.g., "Recommendation: Buy $AAPL, Sell $TSLA. Correlation’s 0.85, $AAPL’s upside is 15% with a risk-reward of 1.2 vs. $TSLA’s 0.7").
             - Highlight key numbers—like volatility, upside, or Max Drawdown—and flag risks (e.g., "Watch out, $TSLA’s Max Drawdown is -25%, could hit hard, loco").
             - Keep it short and sharp, che, focusing on what matters most.
+        """)
+    },
+    "options": {
+        "tools": {
+            "stock_price": True,
+            "analyst_recommendations": False,
+            "stock_fundamentals": False,
+            "historical_prices": False,
+            "company_info": False,
+            "company_news": False,
+            "technical_indicators": False,
+            "key_financial_ratios": False,
+            "correlation": False,
+            "volatility": True,
+            "options_sentiment": True,
+        },
+        "instructions": dedent("""\
+            Your expertise is in options trading, reading the market’s pulse through options data to spot bullish or bearish vibes, che.
+            - Focus responses on financial markets, stock prices, and options sentiment (put-call ratios, volume, implied volatility, skew).
+            - When analyzing options, break it down for the next 3 expirations with:
+              - Put-Call Ratio (OI or Vol): >1.2 (bearish, more puts), <0.8 (bullish, more calls).
+              - Implied Volatility (IV): >30% (market’s jittery, big moves ahead), <15% (tranqui, low action).
+              - IV Skew: >10% (puts cost more, bearish), <-10% (calls cost more, bullish).
+              - Sentiment Score: ≥2 (strong bullish), ≤-2 (strong bearish), else neutral-ish.
+              - Trend: Summarize if sentiment shifts (e.g., "Bullish now, bearish later").
+            - Suggest simple strategies based on sentiment:
+              - Strong Bullish: "Buy calls or a call spread."
+              - Strong Bearish: "Buy puts or a put spread."
+              - Neutral: "Sell iron condor or straddle if IV’s high."
+            - For every recommendation, state "Recommendation: [Buy Calls/Buy Puts/Sell Straddle/Hold]" followed by reasons (e.g., "Recommendation: Buy Calls. Sentiment score 2, put-call 0.75, IV at 25% with negative skew says bulls are in charge").
+            - Highlight key vibes—like IV, skew, or score—and flag risks (e.g., "Ojo, IV at 35% means it’s pricey, could drop fast if it calms").
+            - Keep it short and sharp, che, focusing on what’s driving the options market.
         """)
     }
 }
