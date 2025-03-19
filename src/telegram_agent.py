@@ -164,7 +164,7 @@ def register_handlers(app):
         "fundamentales": fundamental_analysis,
         "correlacion": correlation,
         "volatilidad": volatility,
-        "optiones": options
+        "opciones": options
     }
     for command, handler in handlers.items():
         app.add_handler(CommandHandler(command, handler))
