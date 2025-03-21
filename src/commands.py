@@ -39,13 +39,22 @@ COMMANDS = {
     "precio": CommandConfig(
         description="Get current stock price",
         agent=agents["general"],
-        query_template="Dame el precio actual de {symbol}",
+        query_template="Dame el precio actual del ticker: {symbol}",
         no_args_message="Por favor, especificá el símbolo de la acción. Ejemplo: /precio $AAPL"
     ),
     "noticias": CommandConfig(
         description="Get company or market news",
         agent=agents["general"],
-        query_template="Dame un resumen de las últimas noticias de {symbol}",
+        query_template="Dame un resumen de las últimas noticias del ticker: {symbol}",
+        requires_symbol=True,
+        required_symbols_min=1,
+        no_args_message=None
+    ),
+
+    "noticias_general": CommandConfig(
+        description="Get company or market news",
+        agent=agents["general"],
+        query_template="Dame un resumen de las noticias del mercado financiero del ticker: ^GSPC y el ticker ^SPX",
         requires_symbol=False,
         required_symbols_min=0,
         no_args_message=None
@@ -53,14 +62,14 @@ COMMANDS = {
     "tecnicos": CommandConfig(
         description="Get technical analysis",
         agent=agents["technical"],
-        query_template="Dame el resumen de los análisis técnicos de {symbol}",
+        query_template="Dame el resumen de los análisis técnicos del ticker: {symbol}",
         requires_symbol=True,
         required_symbols_min=1
     ),
     "fundamentales": CommandConfig(
         description="Get fundamental analysis",
         agent=agents["fundamental"],
-        query_template="Dame el resumen detallado de análisis fundamental de {symbol}",
+        query_template="Dame el resumen detallado de análisis fundamental del ticker: {symbol}",
         requires_symbol=True,
         required_symbols_min=1
     ),
@@ -75,7 +84,7 @@ COMMANDS = {
     "volatilidad": CommandConfig(
         description="Get volatility for the asset",
         agent=agents["pairs_and_volatility"],
-        query_template="Dame resumen de volatilidad de {symbol}",
+        query_template="Dame resumen de volatilidad del ticker: {symbol}",
         requires_symbol=True,
         required_symbols_min=1,
         no_args_message="Mandáme un ticker. Ejemplo: /volatilidad $AAPL"
@@ -83,7 +92,7 @@ COMMANDS = {
     "opciones": CommandConfig(
         description="Get options analysis for the asset",
         agent=agents["options"],
-        query_template="Dame analisis de opciones de {symbol}",
+        query_template="Dame analisis de opciones del ticker: {symbol}",
         requires_symbol=True,
         required_symbols_min=1,
         no_args_message="Mandáme un ticker. Ejemplo: /opciones $AAPL"

@@ -73,13 +73,12 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, con
     if config.query_template:
         try:
             if config.required_symbols_min == 0 and not symbols:  # Handle /noticias without ticker
-                query = "Dame un resumen de las noticias del mercado financiero en general"
+                query = config.query_template
 
             elif config.required_symbols_min == 1 and len(symbols) == 1:
                 query = config.query_template.format(symbol=symbols[0])
 
             elif config.required_symbols_min >= 2 and len(symbols) >= 2:
-                # query = config.query_template.format(symbols=symbols)
                 query = config.query_template.format(symbols=" ".join(symbols))
 
             else:
@@ -114,7 +113,7 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 #----------------------------------------------------------------------------
 
 async def news_general(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await handle_command(update, context, COMMANDS["noticias"])
+    await handle_command(update, context, COMMANDS["noticias_general"])
 
 #----------------------------------------------------------------------------
 
