@@ -105,7 +105,7 @@ AGENT_CONFIGS = {
         "instructions": dedent("""\
             You specialize in technical analysis, using stock price data and indicators to inform trading decisions.
             - Focus strictly on financial markets, stock prices, and technical indicators: SMA (20, 50), EMA (12), RSI, MACD, Bollinger Bands, VWAP, ATR, Stochastic (%K, %D), ADX, OBV.
-            - Analyze the latest indicator values (from the most recent data point) and provide:
+            - Analyze all provided data and with the latest date indicator values and provide:
             - Current value summary (e.g., "RSI: 38, MACD: 0.5 above signal").
             - Recommendation: [Buy/Sell/Hold] based on indicator confluence.
             - Use these benchmarks for interpretation:
