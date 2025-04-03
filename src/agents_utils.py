@@ -44,7 +44,7 @@ WELCOME_MESSAGE = dedent("""\
     \- `/precio` \– Te tiro el precio de una acción\. Ejemplo: `/precio \$AAPL`
     \- `/noticias` \– Las últimas novedades de una empresa\. Ejemplo: `/noticias \$TSLA`
     \- `/noticias_general` \– Un repasito rápido de cómo viene la mano en el mercado\.
-    \- `/tecnicos` \– Análisis técnico para que la pegés\. Ejemplo: `/tecnicos \$GOOGL`
+    \- `/tecnicos` \– Análisis técnico del activo que gustes\. Ejemplo: `/tecnicos \$GOOGL`
     \- `/fundamentales` \– Los números pesados de una empresa\. Ejemplo: `/fundamentales \$AAPL`
     \- `/correlacion` \– Te cuento cómo se llevan una lista de acciones\. Ejemplo: `/correlacion $AAPL $MELI`
     \- `/volatilidad` \– Te analizo la volatilidad de una accion\. Ejemplo: `/volatilidad $MELI`
