@@ -285,12 +285,12 @@ class YFinanceTools(Toolkit):
         except Exception as e:
             return self._to_json(None, f"Error fetching company news for {symbol}: {str(e)}")
 
-    def get_technical_indicators(self, symbol: str, period: str = "3mo", interval: str = "1d") -> str:
+    def get_technical_indicators(self, symbol: str, period: str = "1y", interval: str = "1d") -> str:
         """Use this function to Get a comprehensive set of technical indicators for a given stock symbol.
 
         Args:
             symbol (str): The stock symbol.
-            period (str: Default '3mo'): The time period for data retrieval. Defaults to 3mo.
+            period (str: Default '1y'): The time period for data retrieval. Defaults to 1y (one year).
             interval (str: Default '1d'): The data interval. Defaults to '1d'.
 
         Returns:
@@ -361,6 +361,13 @@ class YFinanceTools(Toolkit):
             indicators.index = indicators.index.strftime("%Y-%m-%d")
             indicators = indicators.dropna()
 
+            latest = indicators.iloc[-1].to_dict()
+            signals = {
+                "rsi": "sell" if latest["rsi"] > 70 else "buy" if latest["rsi"] < 30 else "hold",
+                "macd": "buy" if latest["macd"] > latest["signal_line"] else "sell",
+                "bollinger": "sell" if latest["close"] > latest["bb_upper"] else "buy" if latest["close"] < latest["bb_lower"] else "hold"
+            }
+
             result = {
                 "metadata": {
                     "symbol": symbol,
@@ -368,7 +375,8 @@ class YFinanceTools(Toolkit):
                     "interval": interval,
                     "data_points": len(indicators)
                 },
-                "indicators": indicators.to_dict(orient="index")
+                "indicators": indicators.to_dict(orient="index"),
+                "last_signals": signals
             }
             return self._to_json(result)
         except Exception as e:
@@ -603,16 +611,18 @@ class YFinanceTools(Toolkit):
             if len(financials.columns) < 2:
                 return self._to_json(None, f"Insufficient historical data for {symbol}")
 
-            dates = pd.to_datetime(financials.columns)
+            dates = pd.to_datetime(financials.columns).tz_localize(None)
+
             eps_history = financials.loc["Basic EPS"] if "Basic EPS" in financials.index else None
             revenue_history = financials.loc["Total Revenue"] if "Total Revenue" in financials.index else None
+            
             if eps_history is None or revenue_history is None:
                 return self._to_json(None, f"Missing EPS or revenue data for {symbol}")
 
             # Fetch prices efficiently for fiscal year-ends
-            start_date = min(dates) - pd.Timedelta(days=30)
-            end_date = max(dates) + pd.Timedelta(days=1)
-            hist = stock.history(start=start_date, end=end_date)
+            hist = stock.history(start=min(dates) - pd.Timedelta(30, "D"), end=max(dates) + pd.Timedelta(1, "D"))
+            hist.index = hist.index.tz_localize(None)
+
             if hist.empty:
                 return self._to_json(None, f"No historical price data for {symbol}")
 
@@ -620,23 +630,23 @@ class YFinanceTools(Toolkit):
 
             # P/E Ratio History
             pe_history = {date: prices[date] / eps if eps != 0 else None
-                        for date, eps in eps_history.items() if date in prices}
+                        for date, eps in eps_history.items() if date in prices and not pd.isna(eps)}
             valid_pe = [pe for pe in pe_history.values() if pe is not None]
             avg_pe = sum(valid_pe) / len(valid_pe) if valid_pe else None
 
             # Dividend Yield History
             dividends = stock.dividends
-            if not dividends.empty:
-                div_by_year = dividends.groupby(dividends.index.year).sum()
-                div_years = range(max(dates[0].year, dividends.index.year.min()), dates[-1].year + 1)
-                year_end_prices = {year: hist["Close"].asof(f"{year}-12-31")
-                                for year in div_years if hist["Close"].asof(f"{year}-12-31") is not pd.NaT}
-                div_yield_history = {year: (div_by_year.get(year, 0) / price) * 100 if price != 0 else None
-                                    for year, price in year_end_prices.items()}
-                valid_div_yield = [dy for dy in div_yield_history.values() if dy is not None]
-                avg_div_yield = sum(valid_div_yield) / len(valid_div_yield) if valid_div_yield else None
-            else:
+
+            if dividends.empty:
                 avg_div_yield = None
+            else:
+                div_by_year = dividends.groupby(dividends.index.year).sum()
+                div_yield_history = {
+                    year: (div_by_year.get(year, 0) / hist["Close"].asof(f"{year}-12-31")) * 100
+                    for year in range(min(dividends.index).year, max(dates).year)
+                    if hist["Close"].asof(f"{year}-12-31") is not pd.NaT
+                }
+                avg_div_yield = sum(div_yield_history.values()) / len(div_yield_history) if div_yield_history else None
 
             # Revenue Growth History
             revenue_growth = ((revenue_history - revenue_history.shift(1)) / revenue_history.shift(1) * 100).dropna()
@@ -658,33 +668,40 @@ class YFinanceTools(Toolkit):
                 "years_analyzed": years,
                 "data_points": {
                     "pe_ratio": len(valid_pe) if valid_pe else 0,
-                    "dividend_yield": len(valid_div_yield) if avg_div_yield is not None else 0,
-                    "revenue_growth": len(revenue_growth) if not revenue_growth.empty else 0
+                    "dividend_yield": len(div_yield_history) if avg_div_yield else 0,
+                    "revenue_growth": len(revenue_growth),
                 }
             }
             
             def compare(current, avg):
                 return ("below average" if current < avg else "above average" if current > avg else "average")
-
-            if current_pe is not None and avg_pe is not None:
-                comparison["pe_ratio"] = {
-                    "current": round(current_pe, 2),
-                    "historical_average": round(avg_pe, 2),
-                    "comparison": compare(current_pe, avg_pe)
+        
+            comparison = {
+                "symbol": symbol,
+                "years_analyzed": years,
+                "data_points": {
+                    "pe_ratio": len(pe_history),
+                    "dividend_yield": len(div_yield_history) if avg_div_yield else 0,
+                    "revenue_growth": len(revenue_growth),
+                },
+                "pe_ratio": {
+                    "current": round(current_pe, 2) if current_pe else None,
+                    "historical_average": round(avg_pe, 2) if avg_pe else None,
+                    "comparison": compare(current_pe, avg_pe) if current_pe and avg_pe else None
+                },
+                "dividend_yield": {
+                    "current": round(current_div_yield, 2) if current_div_yield else None,
+                    "historical_average": round(avg_div_yield, 2) if avg_div_yield else None,
+                    "comparison": compare(current_div_yield, avg_div_yield) if current_div_yield and avg_div_yield else None
+                },
+                "revenue_growth": {
+                    "current": round(current_revenue_growth, 2) if current_revenue_growth else None,
+                    "historical_average": round(avg_revenue_growth, 2) if avg_revenue_growth else None,
+                    "comparison": compare(current_revenue_growth, avg_revenue_growth) if current_revenue_growth and avg_revenue_growth else None
                 }
-            if current_div_yield is not None and avg_div_yield is not None:
-                comparison["dividend_yield"] = {
-                    "current": round(current_div_yield, 2),
-                    "historical_average": round(avg_div_yield, 2),
-                    "comparison": compare(current_div_yield, avg_div_yield)
-                }
-            if current_revenue_growth is not None and avg_revenue_growth is not None:
-                comparison["revenue_growth"] = {
-                    "current": round(current_revenue_growth, 2),
-                    "historical_average": round(avg_revenue_growth, 2),
-                    "comparison": compare(current_revenue_growth, avg_revenue_growth)
-                }
+            }
 
             return self._to_json(comparison)
+        
         except Exception as e:
             return self._to_json(None, f"Error processing {symbol}: {str(e)}")
