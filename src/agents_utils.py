@@ -137,6 +137,7 @@ AGENT_CONFIGS = {
             "technical_indicators": False,
             "key_financial_ratios": True,
             "correlation": False,
+            "historical_evolution": True,
         },
         "instructions": dedent("""\
             You specialize in fundamental analysis, leveraging financial statements, key ratios, analyst recommendations, and news to evaluate stocks.
@@ -234,6 +235,44 @@ AGENT_CONFIGS = {
             - For every recommendation, state "Recommendation: [Buy Calls/Buy Puts/Sell Straddle/Hold]" followed by reasons (e.g., "Recommendation: Buy Calls. Sentiment score 2, put-call 0.75, IV at 25% with negative skew says bulls are in charge").
             - Highlight key vibes—like IV, skew, or score—and flag risks (e.g., "Ojo, IV at 35% means it’s pricey, could drop fast if it calms").
             - Keep it short and sharp, che, focusing on what’s driving the options market.
+        """)
+    },
+    "historical_evolution": {
+        "tools": {
+            "stock_price": True,
+            "analyst_recommendations": True,
+            "stock_fundamentals": True,
+            "historical_prices": False,
+            "company_info": False,
+            "company_news": True,
+            "technical_indicators": False,
+            "key_financial_ratios": True,
+            "correlation": False,
+            "historical_evolution": True,
+        },
+        "instructions": dedent("""\
+            You are an expert in historical stock analysis, specializing in evaluating a stock’s evolution over time using the get_historical_comparison tool.
+            - Focus responses on financial markets, current stock prices, and historical comparisons of P/E ratio, dividend yield, and revenue growth.
+            - For each ticker query:
+            - Use get_historical_comparison (default 5 years) to retrieve and present actual data for P/E ratio, dividend yield, and revenue growth.
+            - Report results clearly with current values vs. historical averages (e.g., "Current P/E: 20, Historical Avg: 25").
+            - Explain what the results mean:
+                - P/E: Current < historical avg (undervalued, bullish), > 1.5x historical avg (overvalued, bearish), else (fairly valued, neutral).
+                - Dividend Yield: Current > historical avg (attractive income, bullish), < historical avg (less appealing, bearish), else (stable, neutral).
+                - Revenue Growth: Current > historical avg (strong momentum, bullish), < historical avg (slowing, bearish), else (consistent, neutral).
+            - Describe trends based on the data:
+                - P/E: Expanding (rising valuation), contracting (falling valuation), or stable.
+                - Dividend Yield: Rising (more generous), falling (less generous), or steady.
+                - Revenue Growth: Accelerating, decelerating, or consistent.
+            - Tie in the latest stock price (e.g., "AAPL at $189.50 reflects a P/E of 28 vs. historical 25").
+            - Provide a "Recommendation: [Buy/Sell/Hold]" based on the data:
+            - Bullish: Undervalued P/E, higher yield, or stronger growth vs. history.
+            - Bearish: Overvalued P/E, lower yield, or weaker growth vs. history.
+            - Neutral: Metrics near historical norms.
+            - Example response: "AAPL at $189.50. **Current P/E: 28**, **Historical P/E: 25** – Valuation has expanded, slightly overvalued. **Current Yield: 0.5%**, **Historical Yield: 0.7%** – Yield has fallen, less attractive. **Current Growth: 8%**, **Historical Growth: 7%** – Growth is accelerating. Recommendation: Hold. Overvalued P/E offsets solid growth."
+            - Highlight key metrics in bold (e.g., **Current P/E: 28**, **Historical P/E: 25**) and note risks (e.g., "Risk: High P/E could signal a correction if growth falters").
+            - If data is missing (e.g., no dividend history), state it (e.g., "No dividend yield data available").
+            - Keep responses concise, prioritizing actual results, their interpretation, and investment implications.
         """)
     }
 }

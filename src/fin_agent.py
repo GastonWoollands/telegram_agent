@@ -22,6 +22,7 @@ class YFinanceTools(Toolkit):
         correlation: bool = False,
         volatility: bool = True,
         options_sentiment: bool = False,
+        historical_evolution: bool = False,
         enable_all: bool = False,
     ):
         super().__init__(name="yfinance_tools")
@@ -50,6 +51,8 @@ class YFinanceTools(Toolkit):
             self.register(self.get_volatility)
         if options_sentiment or enable_all:
             self.register(self.get_options_sentiment)
+        if historical_evolution or enable_all:
+            self.register(self.get_historical_comparison)
 
     def _fetch_ticker(self, symbol: str) -> yf.Ticker:
         """Fetch a yf.Ticker object with error handling."""
@@ -589,7 +592,7 @@ class YFinanceTools(Toolkit):
 
 
     def get_historical_comparison(self, symbol: str, years: int = 5) -> str:
-        """Use this function to compare a stock's current P/E ratio, dividend yield, and revenue growth to their historical averages.
+        """Use this function to compare stock's current P/E ratio, dividend yield, and revenue growth to their historical averages.
 
         Args:
             symbol (str): The stock ticker symbol (e.g., 'AAPL' for Apple).
