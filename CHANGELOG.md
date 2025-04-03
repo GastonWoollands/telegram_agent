@@ -1,3 +1,15 @@
+## 0.2.3 (2025-04-03)
+
+### Fix
+
+- fix comparison tool
+- minor typo fix
+- technical prompt
+- fix dockerfile
+- req rbpi
+- rbpi req fix
+- requirements file
+
 ## 0.2.2 (2025-03-21)
 
 ### Fix
