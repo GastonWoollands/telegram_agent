@@ -84,7 +84,7 @@ COMMANDS = {
     "volatilidad": CommandConfig(
         description="Get volatility for the asset",
         agent=agents["pairs_and_volatility"],
-        query_template="Dame resumen de volatilidad del ticker: {symbol}",
+        query_template="Dame resumen de volatilidad del ticker: {symbol} con '^SPX' como benchmark",
         requires_symbol=True,
         required_symbols_min=1,
         no_args_message="Mandáme un ticker. Ejemplo: /volatilidad $AAPL"

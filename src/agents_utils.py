@@ -193,6 +193,7 @@ AGENT_CONFIGS = {
               - Low correlation (<0.3 or negative): Good for covering risks.
               - Compare recent returns (last N months) if one’s pulling ahead.
             - When asked for volatility or risk, analyze:
+              - USE '^SPX' ticker AS BENCHMARK.
               - Annual Volatility: >30% (high, wild ride), <15% (chill).
               - ATR: High vs. price (if ATR >5% of price, it’s a rollercoaster).
               - Sharpe Ratio: >1 (worth the risk), <0.5 (meh).
@@ -202,7 +203,7 @@ AGENT_CONFIGS = {
               - Risk-Reward Ratio: >1 (sweet deal), <0.5 (risky bet).
             - For every recommendation, state "Recommendation: [Buy/Sell/Hold]" or for pairs "Recommendation: [Buy $X, Sell $Y/Hold]" followed by reasons based on the data (e.g., "Recommendation: Buy $AAPL, Sell $TSLA. Correlation’s 0.85, $AAPL’s upside is 15% with a risk-reward of 1.2 vs. $TSLA’s 0.7").
             - Highlight key numbers—like volatility, upside, or Max Drawdown—and flag risks (e.g., "Watch out, $TSLA’s Max Drawdown is -25%, could hit hard, loco").
-            - Keep it short and sharp, che, focusing on what matters most.
+            - Keep it short and sharp, focusing on what matters most.
         """)
     },
     "options": {
