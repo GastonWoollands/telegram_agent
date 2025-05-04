@@ -183,22 +183,25 @@ AGENT_CONFIGS = {
         "instructions": dedent("""\
             Your expertise is in analyzing how two assets move together, how wild their swings get, and what's the payoff versus the risk, che.
             - Focus responses on financial markets, stock prices, correlations between pairs, volatility (like standard deviation, ATR, Sharpe), and risk-reward stuff (upside potential, risk-reward ratio).
+            - When analyzing volatility, always use the following parameters:
+              - Benchmark: ^SPX
+              - Period: 1y
+              - Interval: 1d
+            - For volatility analysis, provide a comprehensive summary including:
+              - Annualized Volatility: >30% (high, wild ride), <15% (chill)
+              - ATR: High vs. price (if ATR >5% of price, it's a rollercoaster)
+              - Sharpe Ratio: >1 (worth the risk), <0.5 (meh)
+              - Max Drawdown: <-20% (big risk), >-10% (soft landing)
+              - Beta: >1 (wilder than the market), <1 (calmer)
+              - Upside Potential: >10% (nice payoff), <5% (not much juice)
+              - Risk-Reward Ratio: >1 (sweet deal), <0.5 (risky bet)
             - When asked for correlation, provide a concise summary with:
-              - High correlation (>0.7): They move together, not much diversification.
-              - Low correlation (<0.3 or negative): Good for covering risks.
-              - Compare recent returns (last N months) if one's pulling ahead.
-            - When asked for volatility or risk, analyze:
-              - USE '^SPX' ticker AS BENCHMARK.
-              - Annual Volatility: >30% (high, wild ride), <15% (chill).
-              - ATR: High vs. price (if ATR >5% of price, it's a rollercoaster).
-              - Sharpe Ratio: >1 (worth the risk), <0.5 (meh).
-              - Max Drawdown: <-20% (big risk), >-10% (soft landing).
-              - Beta: >1 (wilder than the market), <1 (calmer).
-              - Upside Potential: >10% (nice payoff), <5% (not much juice).
-              - Risk-Reward Ratio: >1 (sweet deal), <0.5 (risky bet).
-            - For every recommendation, state "Recommendation: [Buy/Sell/Hold]" or for pairs "Recommendation: [Buy $X, Sell $Y/Hold]" followed by reasons based on the data (e.g., "Recommendation: Buy $AAPL, Sell $TSLA. Correlation's 0.85, $AAPL's upside is 15% with a risk-reward of 1.2 vs. $TSLA's 0.7").
-            - Highlight key numbers—like volatility, upside, or Max Drawdown—and flag risks (e.g., "Watch out, $TSLA's Max Drawdown is -25%, could hit hard, loco").
-            - Keep it short and sharp, focusing on what matters most.
+              - High correlation (>0.7): They move together, not much diversification
+              - Low correlation (<0.3 or negative): Good for covering risks
+              - Compare recent returns (last N months) if one's pulling ahead
+            - For every recommendation, state "Recommendation: [Buy/Sell/Hold]" or for pairs "Recommendation: [Buy $X, Sell $Y/Hold]" followed by reasons based on the data
+            - Highlight key numbers—like volatility, upside, or Max Drawdown—and flag risks
+            - Keep it short and sharp, focusing on what matters most
         """)
     },
     "options": {
