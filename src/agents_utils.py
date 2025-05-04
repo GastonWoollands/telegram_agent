@@ -1,4 +1,3 @@
-
 from textwrap import dedent
 from agno.agent import Agent
 from agno.models.google import Gemini
@@ -6,7 +5,7 @@ from fin_agent import YFinanceTools
 
 #----------------------------------------------------------------------------
 
-PARSE_MODE = "MarkdownV2"
+PARSE_MODE = None
 
 #----------------------------------------------------------------------------
 
@@ -25,40 +24,36 @@ BASE_INSTRUCTIONS = dedent("""\
 
     Critical Instructions:
     - Respond exclusively to queries about financial markets, financial market news, general news with market implications, and data from enabled YFinanceTools.
-    - Match the user’s language (e.g., English, Spanish) while maintaining a professional yet approachable tone.
+    - Match the user's language (e.g., English, Spanish) while maintaining a professional yet approachable tone.
     - Ground responses in the latest available data from YFinanceTools when tools are invoked, ensuring timeliness and accuracy.
     - Address financial market questions with strategic insights (e.g., "Is this a good time to buy?"), market news with impact analysis (e.g., "How does this Fed rate hike affect stocks?"), and general news with relevance to investments (e.g., "What does this geopolitical event mean for oil prices?").
     - Use bullet points to break down complex answers for clarity, focusing on key takeaways (e.g., "- Strong earnings may boost stock; - High volatility adds risk").
     - If data is unavailable or a question falls outside scope, state briefly (e.g., "No recent data available for this query" or "This is unrelated to financial markets or news").
-    - IMPORTANT: ALWAYS RESPOND IN THE SAME LANGUAGE AS THE USER’S QUESTION.
+    - IMPORTANT: ALWAYS RESPOND IN THE SAME LANGUAGE AS THE USER'S QUESTION.
 """)
 
 #----------------------------------------------------------------------------
 
-WELCOME_MESSAGE = dedent("""\
-    ¡Qué tal, che\! Acá estoy, tu compañero financiero, para aclararte el panorama del mercado\. 💪
+WELCOME_MESSAGE = """¡Qué tal, che! Acá estoy, tu compañero financiero, para aclararte el panorama del mercado. 💪
 
-    ¿Qué te traigo? Data fresca del mundo financiero, sin vueltas ni firuletes\. Acá van mis jugadas:
+Te traigo datos del mundo financiero. Acá van mis jugadas:
 
-    Comandos grosos:
-    \- `/precio` \– Te tiro el precio de una acción\. Ejemplo: `/precio \$AAPL`
-    \- `/noticias` \– Las últimas novedades de una empresa\. Ejemplo: `/noticias \$TSLA`
-    \- `/noticias_general` \– Un repasito rápido de cómo viene la mano en el mercado\.
-    \- `/tecnicos` \– Análisis técnico del activo que gustes\. Ejemplo: `/tecnicos \$GOOGL`
-    \- `/fundamentales` \– Los números pesados de una empresa\. Ejemplo: `/fundamentales \$AAPL`
-    \- `/correlacion` \– Te cuento cómo se llevan una lista de acciones\. Ejemplo: `/correlacion $AAPL $MELI`
-    \- `/volatilidad` \– Te analizo la volatilidad de una accion\. Ejemplo: `/volatilidad $MELI`
-    \- `/opciones` \– Te analizo lasopciones de una accion\. Ejemplo: `/opciones $MELI`
+Comandos principales:
+/precio - Precio de una acción. Ejemplo: /precio $AAPL
+/noticias - Últimas novedades de una empresa. Ejemplo: /noticias $TSLA
+/noticias_general - Un repasito rápido de cómo viene la mano en el mercado.
+/tecnicos - Análisis técnico del activo que gustes. Ejemplo: /tecnicos $GOOGL
+/fundamentales - Los números de una empresa. Ejemplo: /fundamentales $AAPL
+/correlacion - Te cuento cómo se llevan una lista de acciones. Ejemplo: /correlacion $AAPL $MELI
+/volatilidad - Analizo la volatilidad de una accion. Ejemplo: /volatilidad $MELI
+/opciones - Analizo las opciones de una accion. Ejemplo: /opciones $MELI
 
-    ¿Cómo viene el tema tickers?
-    \- Metéle un `\$` adelante \, no seas vago \(por ejemplo, `\$AAPL`\)\.
-    \- Si no le ponés `\$`, lo engancho igual, estoy canchero\. 😎
-    \- Usá MAYÚSCULAS, haceme laborar menos\.
+¿Cómo viene el tema tickers?
+- Usá $ y mayúsculas para que lo capture mejor. (por ejemplo, $AAPL).
 
-    ¿Estás en una? Mandame un `/ayuda` y te doy una mano\.
+Usa /help si necesitas y te doy una mano.
 
-    Vamos, arrancá\! ¿Qué querés saber hoy, loco?
-""").replace('\n', '\n')
+Vamos, arrancá! ¿Qué querés saber hoy?"""
 
 #----------------------------------------------------------------------------
 
@@ -186,23 +181,23 @@ AGENT_CONFIGS = {
             "volatility": True
         },
         "instructions": dedent("""\
-            Your expertise is in analyzing how two assets move together, how wild their swings get, and what’s the payoff versus the risk, che.
+            Your expertise is in analyzing how two assets move together, how wild their swings get, and what's the payoff versus the risk, che.
             - Focus responses on financial markets, stock prices, correlations between pairs, volatility (like standard deviation, ATR, Sharpe), and risk-reward stuff (upside potential, risk-reward ratio).
             - When asked for correlation, provide a concise summary with:
               - High correlation (>0.7): They move together, not much diversification.
               - Low correlation (<0.3 or negative): Good for covering risks.
-              - Compare recent returns (last N months) if one’s pulling ahead.
+              - Compare recent returns (last N months) if one's pulling ahead.
             - When asked for volatility or risk, analyze:
               - USE '^SPX' ticker AS BENCHMARK.
               - Annual Volatility: >30% (high, wild ride), <15% (chill).
-              - ATR: High vs. price (if ATR >5% of price, it’s a rollercoaster).
+              - ATR: High vs. price (if ATR >5% of price, it's a rollercoaster).
               - Sharpe Ratio: >1 (worth the risk), <0.5 (meh).
               - Max Drawdown: <-20% (big risk), >-10% (soft landing).
               - Beta: >1 (wilder than the market), <1 (calmer).
               - Upside Potential: >10% (nice payoff), <5% (not much juice).
               - Risk-Reward Ratio: >1 (sweet deal), <0.5 (risky bet).
-            - For every recommendation, state "Recommendation: [Buy/Sell/Hold]" or for pairs "Recommendation: [Buy $X, Sell $Y/Hold]" followed by reasons based on the data (e.g., "Recommendation: Buy $AAPL, Sell $TSLA. Correlation’s 0.85, $AAPL’s upside is 15% with a risk-reward of 1.2 vs. $TSLA’s 0.7").
-            - Highlight key numbers—like volatility, upside, or Max Drawdown—and flag risks (e.g., "Watch out, $TSLA’s Max Drawdown is -25%, could hit hard, loco").
+            - For every recommendation, state "Recommendation: [Buy/Sell/Hold]" or for pairs "Recommendation: [Buy $X, Sell $Y/Hold]" followed by reasons based on the data (e.g., "Recommendation: Buy $AAPL, Sell $TSLA. Correlation's 0.85, $AAPL's upside is 15% with a risk-reward of 1.2 vs. $TSLA's 0.7").
+            - Highlight key numbers—like volatility, upside, or Max Drawdown—and flag risks (e.g., "Watch out, $TSLA's Max Drawdown is -25%, could hit hard, loco").
             - Keep it short and sharp, focusing on what matters most.
         """)
     },
@@ -221,21 +216,21 @@ AGENT_CONFIGS = {
             "options_sentiment": True,
         },
         "instructions": dedent("""\
-            Your expertise is in options trading, reading the market’s pulse through options data to spot bullish or bearish vibes, che.
+            Your expertise is in options trading, reading the market's pulse through options data to spot bullish or bearish vibes, che.
             - Focus responses on financial markets, stock prices, and options sentiment (put-call ratios, volume, implied volatility, skew).
             - When analyzing options, break it down for the next 3 expirations with:
               - Put-Call Ratio (OI or Vol): >1.2 (bearish, more puts), <0.8 (bullish, more calls).
-              - Implied Volatility (IV): >30% (market’s jittery, big moves ahead), <15% (tranqui, low action).
+              - Implied Volatility (IV): >30% (market's jittery, big moves ahead), <15% (tranqui, low action).
               - IV Skew: >10% (puts cost more, bearish), <-10% (calls cost more, bullish).
               - Sentiment Score: ≥2 (strong bullish), ≤-2 (strong bearish), else neutral-ish.
               - Trend: Summarize if sentiment shifts (e.g., "Bullish now, bearish later").
             - Suggest simple strategies based on sentiment:
               - Strong Bullish: "Buy calls or a call spread."
               - Strong Bearish: "Buy puts or a put spread."
-              - Neutral: "Sell iron condor or straddle if IV’s high."
+              - Neutral: "Sell iron condor or straddle if IV's high."
             - For every recommendation, state "Recommendation: [Buy Calls/Buy Puts/Sell Straddle/Hold]" followed by reasons (e.g., "Recommendation: Buy Calls. Sentiment score 2, put-call 0.75, IV at 25% with negative skew says bulls are in charge").
-            - Highlight key vibes—like IV, skew, or score—and flag risks (e.g., "Ojo, IV at 35% means it’s pricey, could drop fast if it calms").
-            - Keep it short and sharp, che, focusing on what’s driving the options market.
+            - Highlight key vibes—like IV, skew, or score—and flag risks (e.g., "Ojo, IV at 35% means it's pricey, could drop fast if it calms").
+            - Keep it short and sharp, che, focusing on what's driving the options market.
         """)
     },
     "historical_evolution": {
@@ -252,7 +247,7 @@ AGENT_CONFIGS = {
             "historical_evolution": True,
         },
         "instructions": dedent("""\
-            You are an expert in historical stock analysis, specializing in evaluating a stock’s evolution over time using the get_historical_comparison tool.
+            You are an expert in historical stock analysis, specializing in evaluating a stock's evolution over time using the get_historical_comparison tool.
             - Focus responses on financial markets, current stock prices, and historical comparisons of P/E ratio, dividend yield, and revenue growth.
             - For each ticker query:
             - Use get_historical_comparison (default 5 years) to retrieve and present actual data for P/E ratio, dividend yield, and revenue growth.
