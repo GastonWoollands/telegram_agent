@@ -4,6 +4,7 @@ import yfinance as yf
 import pandas as pd
 from scipy.stats import spearmanr
 from agno.tools import Toolkit
+from functools import lru_cache
 
 class YFinanceTools(Toolkit):
     """A toolkit for retrieving financial data using the yFinance API."""
@@ -54,8 +55,9 @@ class YFinanceTools(Toolkit):
         if historical_evolution or enable_all:
             self.register(self.get_historical_comparison)
 
+    @lru_cache(maxsize=100)
     def _fetch_ticker(self, symbol: str) -> yf.Ticker:
-        """Fetch a yf.Ticker object with error handling."""
+        """Fetch a yf.Ticker object with error handling and caching."""
         try:
             return yf.Ticker(symbol)
         except Exception as e:
@@ -602,7 +604,6 @@ class YFinanceTools(Toolkit):
             str: A JSON string with current metrics, historical averages, and comparisons.
                  Returns an error message in JSON format if data retrieval fails.
         """
-        
         try:
             stock = self._fetch_ticker(symbol)
             financials = stock.financials
@@ -705,6 +706,5 @@ class YFinanceTools(Toolkit):
             }
 
             return self._to_json(comparison)
-        
         except Exception as e:
             return self._to_json(None, f"Error processing {symbol}: {str(e)}")

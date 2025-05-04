@@ -36,6 +36,13 @@ COMMANDS = {
         requires_symbol=False,
         required_symbols_min=0
     ),
+    "help": CommandConfig(
+        description="Show help message with all available commands",
+        agent=None,
+        query_template="",
+        requires_symbol=False,
+        required_symbols_min=0
+    ),
     "precio": CommandConfig(
         description="Get current stock price",
         agent=agents["general"],
