@@ -69,14 +69,14 @@ COMMANDS = {
     "tecnicos": CommandConfig(
         description="Get technical analysis",
         agent=agents["technical"],
-        query_template="Dame el resumen de los análisis técnicos del ticker: {symbol}",
+        query_template="Dame el resumen de los análisis técnicos del ticker: {symbol} con el periodo de 1 año",
         requires_symbol=True,
         required_symbols_min=1
     ),
     "fundamentales": CommandConfig(
         description="Get fundamental analysis",
         agent=agents["fundamental"],
-        query_template="Dame el resumen detallado de análisis fundamental del ticker: {symbol}",
+        query_template="Dame el resumen detallado de análisis fundamental del ticker: {symbol} con el periodo de 1 año",
         requires_symbol=True,
         required_symbols_min=1
     ),
@@ -89,17 +89,17 @@ COMMANDS = {
         no_args_message="Mandáme dos tickers. Ejemplo: /correlacion $^SPY $AAPL"
     ),
     "volatilidad": CommandConfig(
-        description="Get volatility for the asset",
+        description="Get volatility for the asset using the ^SPX as benchmark and the default period of 1 year",
         agent=agents["pairs_and_volatility"],
-        query_template="Dame resumen de volatilidad del ticker: {symbol} con '^SPX' como benchmark",
+        query_template="Dame resumen de volatilidad del ticker: {symbol} con '^SPX' como benchmark y el periodo de 1 año",
         requires_symbol=True,
         required_symbols_min=1,
         no_args_message="Mandáme un ticker. Ejemplo: /volatilidad $AAPL"
     ),
     "opciones": CommandConfig(
-        description="Get options analysis for the asset",
+        description="Get options analysis for the asset using the default period of 1 year",
         agent=agents["options"],
-        query_template="Dame analisis de opciones del ticker: {symbol}",
+        query_template="Dame analisis de opciones del ticker: {symbol} con el periodo de 1 año",
         requires_symbol=True,
         required_symbols_min=1,
         no_args_message="Mandáme un ticker. Ejemplo: /opciones $AAPL"

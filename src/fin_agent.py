@@ -1,10 +1,14 @@
 import json
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List, Optional
 import yfinance as yf
 import pandas as pd
 from scipy.stats import spearmanr
 from agno.tools import Toolkit
 from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from datetime import datetime
+import numpy as np
 
 class YFinanceTools(Toolkit):
     """A toolkit for retrieving financial data using the yFinance API."""
@@ -25,8 +29,16 @@ class YFinanceTools(Toolkit):
         options_sentiment: bool = False,
         historical_evolution: bool = False,
         enable_all: bool = False,
+        max_workers: int = 5,
+        request_timeout: int = 10,
+        max_retries: int = 3,
+        retry_delay: float = 1.0
     ):
         super().__init__(name="yfinance_tools")
+        self.max_workers = max_workers
+        self.request_timeout = request_timeout
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
         if stock_price or enable_all:
             self.register(self.get_current_stock_price)
@@ -55,13 +67,39 @@ class YFinanceTools(Toolkit):
         if historical_evolution or enable_all:
             self.register(self.get_historical_comparison)
 
+    def _retry_with_backoff(self, func, *args, **kwargs):
+        """Implement exponential backoff for retrying failed requests."""
+        for attempt in range(self.max_retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    raise e
+                time.sleep(self.retry_delay * (2 ** attempt))
+
     @lru_cache(maxsize=100)
     def _fetch_ticker(self, symbol: str) -> yf.Ticker:
         """Fetch a yf.Ticker object with error handling and caching."""
         try:
-            return yf.Ticker(symbol)
+            return self._retry_with_backoff(yf.Ticker, symbol)
         except Exception as e:
             raise ValueError(f"Failed to fetch ticker for {symbol}: {str(e)}")
+
+    def _fetch_multiple_tickers(self, symbols: List[str]) -> Dict[str, yf.Ticker]:
+        """Fetch multiple tickers in parallel."""
+        tickers = {}
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_symbol = {
+                executor.submit(self._fetch_ticker, symbol): symbol 
+                for symbol in symbols
+            }
+            for future in as_completed(future_to_symbol):
+                symbol = future_to_symbol[future]
+                try:
+                    tickers[symbol] = future.result()
+                except Exception as e:
+                    tickers[symbol] = None
+        return tickers
 
     def _to_json(self, data, error_msg: str = None) -> str:
         """Convert data to JSON string or return an error message."""
@@ -73,35 +111,77 @@ class YFinanceTools(Toolkit):
         """Compute percentage change returns, dropping NaN values."""
         return data.pct_change().dropna()
 
+    def _vectorized_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Compute technical indicators using vectorized operations."""
+        # Moving Averages
+        df["sma_20"] = df["close"].rolling(20, min_periods=1).mean()
+        df["sma_50"] = df["close"].rolling(50, min_periods=1).mean()
+        df["ema_12"] = df["close"].ewm(span=12, adjust=False).mean()
+
+        # RSI
+        delta = df["close"].diff()
+        gain = delta.clip(lower=0).rolling(14, min_periods=1).mean()
+        loss = (-delta.clip(upper=0)).rolling(14, min_periods=1).mean()
+        rs = gain / loss.replace(0, 1e-10)
+        df["rsi"] = 100 - (100 / (1 + rs))
+
+        # MACD
+        df["macd"] = df["close"].ewm(span=12, adjust=False).mean() - df["close"].ewm(span=26, adjust=False).mean()
+        df["signal_line"] = df["macd"].ewm(span=9, adjust=False).mean()
+        df["macd_histogram"] = df["macd"] - df["signal_line"]
+
+        # Bollinger Bands
+        df["bb_middle"] = df["close"].rolling(20, min_periods=1).mean()
+        bb_std = df["close"].rolling(20, min_periods=1).std()
+        df["bb_upper"] = df["bb_middle"] + 2 * bb_std
+        df["bb_lower"] = df["bb_middle"] - 2 * bb_std
+
+        # VWAP
+        tp = (df["high"] + df["low"] + df["close"]) / 3
+        df["vwap"] = (tp * df["volume"]).cumsum() / df["volume"].cumsum()
+
+        # ATR
+        tr = pd.concat([df["high"] - df["low"],
+                    (df["high"] - df["close"].shift()).abs(),
+                    (df["low"] - df["close"].shift()).abs()], axis=1).max(axis=1)
+        df["atr"] = tr.rolling(14, min_periods=1).mean()
+
+        # Stochastic Oscillator
+        low_14, high_14 = df["low"].rolling(14, min_periods=1).min(), df["high"].rolling(14, min_periods=1).max()
+        df["stoch_k"] = 100 * (df["close"] - low_14) / (high_14 - low_14).replace(0, 1e-10)
+        df["stoch_d"] = df["stoch_k"].rolling(3, min_periods=1).mean()
+
+        # ADX
+        plus_dm = (df["high"] - df["high"].shift()).clip(lower=0)
+        minus_dm = (df["low"].shift() - df["low"]).clip(lower=0)
+        tr_smooth = tr.rolling(14, min_periods=1).mean()
+        plus_di = 100 * plus_dm.rolling(14, min_periods=1).mean() / tr_smooth
+        minus_di = 100 * minus_dm.rolling(14, min_periods=1).mean() / tr_smooth
+        dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, 1e-10)
+        df["adx"] = dx.rolling(14, min_periods=1).mean()
+
+        # OBV
+        df["obv"] = (df["volume"] * (df["close"].gt(df["close"].shift()).astype(int) - 
+                                    df["close"].lt(df["close"].shift()).astype(int))).cumsum()
+
+        return df
+
     def get_current_stock_price(self, symbol: str) -> str:
-        """
-        Use this function to get the current stock price for a given symbol.
-
-        Args:
-            symbol (str): The stock symbol.
-
-        Returns:
-            str: The current stock price or error message.
-        """
+        """Get current stock price with retry mechanism."""
         try:
             ticker = self._fetch_ticker(symbol)
-            price = ticker.info.get("regularMarketPrice") or ticker.info.get("currentPrice")
+            price = self._retry_with_backoff(
+                lambda: ticker.info.get("regularMarketPrice") or ticker.info.get("currentPrice")
+            )
             return self._to_json({"price": round(price, 4)}, f"No price data available for {symbol}")
         except Exception as e:
             return self._to_json(None, f"Error fetching price for {symbol}: {str(e)}")
 
     def get_company_info(self, symbol: str) -> str:
-        """Use this function to get company information and overview for a given stock symbol.
-
-        Args:
-            symbol (str): The stock symbol.
-
-        Returns:
-            str: JSON containing company profile and overview.
-        """
+        """Get company information with parallel processing for multiple symbols."""
         try:
             ticker = self._fetch_ticker(symbol)
-            info = ticker.info
+            info = self._retry_with_backoff(lambda: ticker.info)
             company_data = {
                 k: info.get(v) for k, v in {
                     "name": "shortName",
@@ -291,74 +371,26 @@ class YFinanceTools(Toolkit):
             return self._to_json(None, f"Error fetching company news for {symbol}: {str(e)}")
 
     def get_technical_indicators(self, symbol: str, period: str = "1y", interval: str = "1d") -> str:
-        """Use this function to Get a comprehensive set of technical indicators for a given stock symbol.
-
+        """Get technical indicators with optimized vectorized operations.
         Args:
             symbol (str): The stock symbol.
-            period (str: Default '1y'): The time period for data retrieval. Defaults to 1y (one year).
-            interval (str: Default '1d'): The data interval. Defaults to '1d'.
+            period (str, Default: "1y"): The period for which to retrieve historical prices. Defaults to "1y".
+            interval (str, Default: "1d"): The interval between data points. Defaults to "1d".
 
         Returns:
-            str: JSON string containing technical indicators or an error message.
+            str: JSON containing technical indicators.
+        
         """
         try:
             ticker = self._fetch_ticker(symbol)
-            data = ticker.history(period=period, interval=interval)
+            data = self._retry_with_backoff(
+                lambda: ticker.history(period=period, interval=interval)
+            )
             if data.empty:
                 return self._to_json(None, f"No data for {symbol}")
 
             df = data.rename(columns={"Close": "close", "High": "high", "Low": "low", "Volume": "volume"})
-
-            # Moving Averages
-            df["sma_20"] = df["close"].rolling(20, min_periods=1).mean()
-            df["sma_50"] = df["close"].rolling(50, min_periods=1).mean()
-            df["ema_12"] = df["close"].ewm(span=12, adjust=False).mean()
-
-            # RSI
-            delta = df["close"].diff()
-            gain = delta.clip(lower=0).rolling(14, min_periods=1).mean()
-            loss = (-delta.clip(upper=0)).rolling(14, min_periods=1).mean()
-            rs = gain / loss.replace(0, 1e-10)
-            df["rsi"] = 100 - (100 / (1 + rs))
-
-            # MACD
-            df["macd"] = df["close"].ewm(span=12, adjust=False).mean() - df["close"].ewm(span=26, adjust=False).mean()
-            df["signal_line"] = df["macd"].ewm(span=9, adjust=False).mean()
-            df["macd_histogram"] = df["macd"] - df["signal_line"]
-
-            # Bollinger Bands
-            df["bb_middle"] = df["close"].rolling(20, min_periods=1).mean()
-            bb_std = df["close"].rolling(20, min_periods=1).std()
-            df["bb_upper"] = df["bb_middle"] + 2 * bb_std
-            df["bb_lower"] = df["bb_middle"] - 2 * bb_std
-
-            # VWAP
-            tp = (df["high"] + df["low"] + df["close"]) / 3
-            df["vwap"] = (tp * df["volume"]).cumsum() / df["volume"].cumsum()
-
-            # ATR
-            tr = pd.concat([df["high"] - df["low"],
-                        (df["high"] - df["close"].shift()).abs(),
-                        (df["low"] - df["close"].shift()).abs()], axis=1).max(axis=1)
-            df["atr"] = tr.rolling(14, min_periods=1).mean()
-
-            # Stochastic Oscillator
-            low_14, high_14 = df["low"].rolling(14, min_periods=1).min(), df["high"].rolling(14, min_periods=1).max()
-            df["stoch_k"] = 100 * (df["close"] - low_14) / (high_14 - low_14).replace(0, 1e-10)
-            df["stoch_d"] = df["stoch_k"].rolling(3, min_periods=1).mean()
-
-            # ADX
-            plus_dm = (df["high"] - df["high"].shift()).clip(lower=0)
-            minus_dm = (df["low"].shift() - df["low"]).clip(lower=0)
-            tr_smooth = tr.rolling(14, min_periods=1).mean()
-            plus_di = 100 * plus_dm.rolling(14, min_periods=1).mean() / tr_smooth
-            minus_di = 100 * minus_dm.rolling(14, min_periods=1).mean() / tr_smooth
-            dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, 1e-10)
-            df["adx"] = dx.rolling(14, min_periods=1).mean()
-
-            # OBV
-            df["obv"] = (df["volume"] * (df["close"].gt(df["close"].shift()).astype(int) - 
-                                        df["close"].lt(df["close"].shift()).astype(int))).cumsum()
+            df = self._vectorized_technical_indicators(df)
 
             # Select and format indicators
             indicators = df[["close", "sma_20", "sma_50", "ema_12", "rsi", "macd", "signal_line", "macd_histogram",
@@ -393,9 +425,9 @@ class YFinanceTools(Toolkit):
 
         Args:
             symbol (str): The stock symbol.
-            period (str): The period for which to retrieve historical prices. Defaults to "1mo".
+            period (str, Default: "1mo"): The period for which to retrieve historical prices. Defaults to "1mo".
                         Valid periods: 1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max
-            interval (str): The interval between data points. Defaults to "1d".
+            interval (str, Default: "1d"): The interval between data points. Defaults to "1d".
                         Valid intervals: 1d,5d,1wk,1mo,3mo
 
         Returns:
@@ -411,21 +443,26 @@ class YFinanceTools(Toolkit):
             return self._to_json(None, f"Error fetching historical prices for {symbol}: {str(e)}")
 
     def get_correlation(self, symbol_1: str, symbol_2: str, period: str = "1y", interval: str = "1d") -> str:
-        """Use this function to get company correlation between two assets
-
+        """Get correlation between two assets with parallel processing.
+        
         Args:
-            symbol_1 (str): The stock symbol.
-            symbol_2 (str): The stock symbol.
-            period (str): The time period for data retrieval. Default 1y
-            interval (str): The data interval (e.g., '1d' for daily). Defaults to '1d'.
-
-        Returns:
-            str: JSON containing company news and press releases.
-        """  
+            symbol_1 (str): The first stock symbol.
+            symbol_2 (str): The second stock symbol.
+            period (str, Default: "1y"): The period for which to retrieve historical prices. Defaults to "1y".
+            interval (str, Default: "1d"): The interval between data points. Defaults to "1d".
+        """
         try:
-            ticker1, ticker2 = self._fetch_ticker(symbol_1), self._fetch_ticker(symbol_2)
-            data1 = ticker1.history(period=period, interval=interval)["Close"]
-            data2 = ticker2.history(period=period, interval=interval)["Close"]
+            tickers = self._fetch_multiple_tickers([symbol_1, symbol_2])
+            if None in tickers.values():
+                return self._to_json(None, f"Failed to fetch data for one or both symbols")
+
+            data1 = self._retry_with_backoff(
+                lambda: tickers[symbol_1].history(period=period, interval=interval)["Close"]
+            )
+            data2 = self._retry_with_backoff(
+                lambda: tickers[symbol_2].history(period=period, interval=interval)["Close"]
+            )
+
             if data1.empty or data2.empty:
                 return self._to_json(None, f"No data available for {symbol_1} or {symbol_2}")
 
@@ -449,36 +486,41 @@ class YFinanceTools(Toolkit):
             return self._to_json(None, f"Error calculating correlation for {symbol_1}-{symbol_2}: {str(e)}")
 
     def get_volatility(self, symbol: str, period: str = "1y", interval: str = "1d", benchmark_symbol: str = "^SPX") -> str:
-        """Use this function to get company volatility metrics for a given stock symbol against benchmark "^SPX".
-
+        """Get volatility metrics with parallel processing and optimized calculations.
+        
         Args:
             symbol (str): The stock symbol.
-            period (str: Defaults to 1y): The time period for data retrieval. Defaults to 1y.
-            interval (str: Default '1d'): The data interval (e.g., '1d' for daily). Defaults to '1d'.
-            benchmark_symbol (str: Default "^SPX"): Benchmark for Beta calculation (e.g., "^SPX"). Defaults to "^SPX".
-
-        Returns:
-            str: JSON string containing volatility metrics or an error message.
+            period (str, Default: "1y"): The period for which to retrieve historical prices. Defaults to "1y".
+            interval (str, Default: "1d"): The interval between data points. Defaults to "1d".
+            benchmark_symbol (str, Default: "^SPX"): The benchmark symbol. Defaults to "^SPX".
         """
         try:
-            ticker, bench = self._fetch_ticker(symbol), self._fetch_ticker(benchmark_symbol)
-            data = ticker.history(period=period, interval=interval)
-            bench_data = bench.history(period=period, interval=interval)
+            tickers = self._fetch_multiple_tickers([symbol, benchmark_symbol])
+            if None in tickers.values():
+                return self._to_json(None, f"Failed to fetch data for one or both symbols")
+
+            data = self._retry_with_backoff(
+                lambda: tickers[symbol].history(period=period, interval=interval)
+            )
+            bench_data = self._retry_with_backoff(
+                lambda: tickers[benchmark_symbol].history(period=period, interval=interval)
+            )
+
             if data.empty or bench_data.empty:
                 return self._to_json(None, f"No data for {symbol} or {benchmark_symbol}")
 
-            info = ticker.info
+            info = tickers[symbol].info
             current_price = info.get("regularMarketPrice", data["Close"].iloc[-1])
             target_price = info.get("targetMeanPrice", current_price)
 
-            # Compute returns
+            # Compute returns using vectorized operations
             returns = self._compute_returns(data["Close"])
             bench_returns = self._compute_returns(bench_data["Close"])
             aligned = returns.align(bench_returns, join="inner")
             asset_returns, bench_returns = aligned
 
             # Volatility metrics
-            volatility = returns.std() * (252 ** 0.5) # Assumes period 1y
+            volatility = returns.std() * (252 ** 0.5)  # Annualized
             annualized_return = returns.mean() * 252
             sharpe = annualized_return / volatility if volatility != 0 else 0
 
@@ -502,7 +544,6 @@ class YFinanceTools(Toolkit):
             upside_potential = ((target_price - current_price) / current_price) * 100 if current_price != 0 else 0
             risk_reward = abs(upside_potential / (max_drawdown * 100)) if max_drawdown != 0 else 0
 
-            # Metadata
             metadata = {
                 "symbol": symbol,
                 "benchmark": benchmark_symbol,
