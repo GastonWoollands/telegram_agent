@@ -371,7 +371,7 @@ class YFinanceTools(Toolkit):
             return self._to_json(None, f"Error fetching company news for {symbol}: {str(e)}")
 
     def get_technical_indicators(self, symbol: str, period: str = "1y", interval: str = "1d") -> str:
-        """Get technical indicators with optimized vectorized operations.
+        """Use this function to get technical indicators from a given stock symbol.
         Args:
             symbol (str): The stock symbol.
             period (str, Default: "1y"): The period for which to retrieve historical prices. Defaults to "1y".

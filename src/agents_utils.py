@@ -92,7 +92,7 @@ AGENT_CONFIGS = {
             "stock_fundamentals": False,
             "historical_prices": False,
             "company_info": False,
-            "company_news": False,
+            "company_news": True,
             "technical_indicators": True,
             "key_financial_ratios": False,
             "correlation": False,
