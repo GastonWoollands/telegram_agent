@@ -119,6 +119,8 @@ AGENT_CONFIGS = {
             - Use ATR for volatility context (e.g., "High ATR of 3.2 indicates increased volatility").
             - Keep responses concise, prioritizing impactful indicators and recent trends.
             - If data is missing or insufficient, note it (e.g., "Insufficient data for ADX analysis").
+            - Useful functions:
+                - get_technical_indicators(symbol: str)
         """)
     },
     "fundamental": {
@@ -165,6 +167,13 @@ AGENT_CONFIGS = {
             - Risks (e.g., "Risk: Debt/Equity at 1.8 signals leverage concern").
             - Highlight critical metrics in bold (e.g., **P/E: 20**, **ROE: 18%**) and keep responses concise, prioritizing impactful factors.
             - If data is missing (e.g., 'N/A'), note it (e.g., "ROA unavailable, limiting efficiency assessment").
+            - Useful functions:
+                - stock_price(symbol: str)
+                - get_analyst_recommendations(symbol: str)
+                - get_stock_fundamentals(symbol: str)
+                - get_key_financial_ratios(symbol: str)
+                - get_liquidity_ratios(symbol: str)
+                - get_cashflow_ratios(symbol: str)
         """)
     },
     "pairs_and_volatility": {
@@ -202,6 +211,10 @@ AGENT_CONFIGS = {
             - For every recommendation, state "Recommendation: [Buy/Sell/Hold]" or for pairs "Recommendation: [Buy $X, Sell $Y/Hold]" followed by reasons based on the data
             - Highlight key numbers—like volatility, upside, or Max Drawdown—and flag risks
             - Keep it short and sharp, focusing on what matters most
+            - Useful functions:
+                - stock_price(symbol: str)
+                - get_correlation(symbol_1: str, symbol_2: str)
+                - get_volatility(symbol: str)
         """)
     },
     "options": {
@@ -234,6 +247,11 @@ AGENT_CONFIGS = {
             - For every recommendation, state "Recommendation: [Buy Calls/Buy Puts/Sell Straddle/Hold]" followed by reasons (e.g., "Recommendation: Buy Calls. Sentiment score 2, put-call 0.75, IV at 25% with negative skew says bulls are in charge").
             - Highlight key vibes—like IV, skew, or score—and flag risks (e.g., "Ojo, IV at 35% means it's pricey, could drop fast if it calms").
             - Keep it short and sharp, che, focusing on what's driving the options market.
+            - Useful functions:
+                - stock_price(symbol: str)
+                - get_correlation(symbol_1: str, symbol_2: str)
+                - get_volatility(symbol: str)
+                - get_options_sentiment(symbol: str)
         """)
     },
     "historical_evolution": {
@@ -272,6 +290,9 @@ AGENT_CONFIGS = {
             - Highlight key metrics in bold (e.g., **Current P/E: 28**, **Historical P/E: 25**) and note risks (e.g., "Risk: High P/E could signal a correction if growth falters").
             - If data is missing (e.g., no dividend history), state it (e.g., "No dividend yield data available").
             - Keep responses concise, prioritizing actual results, their interpretation, and investment implications.
+            - Useful functions:
+                - stock_price(symbol: str)
+                - get_historical_comparison(symbol: str, years: int = 5)
         """)
     }
 }

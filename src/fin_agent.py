@@ -443,7 +443,7 @@ class YFinanceTools(Toolkit):
             return self._to_json(None, f"Error fetching historical prices for {symbol}: {str(e)}")
 
     def get_correlation(self, symbol_1: str, symbol_2: str, period: str = "1y", interval: str = "1d") -> str:
-        """Get correlation between two assets with parallel processing.
+        """Use this function to get correlation between two assets.
         
         Args:
             symbol_1 (str): The first stock symbol.
@@ -486,7 +486,7 @@ class YFinanceTools(Toolkit):
             return self._to_json(None, f"Error calculating correlation for {symbol_1}-{symbol_2}: {str(e)}")
 
     def get_volatility(self, symbol: str, period: str = "1y", interval: str = "1d", benchmark_symbol: str = "^SPX") -> str:
-        """Get volatility metrics with parallel processing and optimized calculations.
+        """Use this function to get volatility metrics.
         
         Args:
             symbol (str): The stock symbol.
