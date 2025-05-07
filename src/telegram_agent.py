@@ -12,19 +12,53 @@ from agents_utils import create_financial_agent
 from agents_utils import DEFAULT_RESPONSE, WELCOME_MESSAGE, PARSE_MODE
 from commands import CommandConfig, COMMANDS
 from progress_indicator import ProgressIndicator
+from logging.handlers import RotatingFileHandler
 
 #----------------------------------------------------------------------------
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('bot.log')
-    ]
-)
-logger = logging.getLogger(__name__)
+def setup_logging():
+    """Configure logging with rotation and formatting."""
+    os.makedirs('logs', exist_ok=True)
+    
+    # Configure root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # Filter out httpx logs
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    
+    # Create formatters
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    console_formatter = logging.Formatter(
+        '%(levelname)s - %(message)s'
+    )
+    
+    # File handler with rotation (10MB per file, keep 5 backup files)
+    file_handler = RotatingFileHandler(
+        'logs/bot.log',
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(file_formatter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(console_formatter)
+    
+    # Add handlers to root logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+# Initialize logging
+logger = setup_logging()
 
 #----------------------------------------------------------------------------
 
@@ -57,8 +91,9 @@ async def get_agent_response(agent: Agent, query: str, progress: ProgressIndicat
         if progress:
             await progress.update_text("Consultando datos financieros")
         response = agent.run(query)
-        logger.debug(f"Agent response received: {response.content[:100]}...")
-        return response.content if hasattr(response, "content") else str(response)
+        response_content = response.content if hasattr(response, "content") else str(response)
+        logger.debug(f"Agent response received: {response_content[:100]}...")
+        return response_content
     except Exception as e:
         logger.error(f"Error running agent query '{query}': {str(e)}")
         return DEFAULT_RESPONSE
@@ -98,7 +133,8 @@ rate_limiter = RateLimiter(max_requests=10, time_window=60)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a help message with all available commands."""
-    logger.info(f"Help command requested by user {update.effective_user.id}")
+    user_id = update.effective_user.id
+    logger.info(f"Help command requested by user {user_id}")
     help_text = """📊 Comandos disponibles:
 
 /precio - Te tiro el precio de una acción. Ejemplo: /precio $AAPL
@@ -116,29 +152,41 @@ Podés usar el símbolo $ o no
 Para más info, usá /ayuda"""
 
     await update.message.reply_text(help_text)
-    logger.debug("Help message sent successfully")
+    logger.debug(f"Help message sent to user {user_id}")
 
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle errors in the bot."""
-    logger.error(f"Update {update} caused error {context.error}")
+    user_id = update.effective_user.id if update and update.effective_user else "unknown"
+    error = context.error
     
-    if isinstance(context.error, ValueError):
+    logger.error(f"Error for user {user_id}: {str(error)}")
+    
+    if isinstance(error, ValueError):
         error_msg = "Che, algo salió mal con los datos. Asegurate de usar un ticker válido."
-    elif isinstance(context.error, TimeoutError):
+    elif isinstance(error, TimeoutError):
         error_msg = "Se me colgó la conexión. Intentá de nuevo en un ratito."
     else:
         error_msg = "Ups, algo salió mal. Intentá de nuevo más tarde."
     
-    logger.error(f"Error details: {str(context.error)}")
-    await update.message.reply_text(error_msg)
+    if update and update.message:
+        await update.message.reply_text(error_msg)
+        logger.debug(f"Error message sent to user {user_id}")
+
+def log_bot_response(user_id: int, command: str, response: str, execution_time: float):
+    """Log the bot's response to a user query."""
+    logger.info(f"Bot response for user {user_id} - Command: {command}")
+    logger.info(f"Response: {response[:200]}..." if len(response) > 200 else f"Response: {response}")
+    logger.info(f"Execution time: {execution_time:.2f} seconds")
 
 async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, config: CommandConfig) -> None:
     """Generic handler for bot commands supporting variable symbol counts."""
     user_id = update.effective_user.id
     command = update.message.text.split()[0]
+    start_time = time.time()
+    
     logger.info(f"Command '{command}' received from user {user_id}")
-
+    
     # Check rate limit
     if not rate_limiter.is_allowed(user_id):
         logger.warning(f"Rate limit exceeded for user {user_id}")
@@ -151,7 +199,7 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, con
     
     try:
         if config.agent is None:  # Special case for /start and /help
-            logger.debug(f"Handling special command: {command}")
+            logger.debug(f"Handling special command: {command} for user {user_id}")
             if update.message.text.startswith("/help"):
                 await progress.stop()
                 await help_command(update, context)
@@ -164,7 +212,7 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, con
         args = " ".join(context.args) if context.args else ""
         symbols = [extract_symbol(arg) for arg in context.args if extract_symbol(arg)] if args else []
 
-        logger.info(f"Command: {config.description}, Extracted Symbols: {symbols}, Len Symbols: {len(symbols)}")
+        logger.info(f"Command: {config.description}, User: {user_id}, Symbols: {symbols}")
 
         # Validate symbol count
         if config.requires_symbol:
@@ -185,42 +233,45 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, con
             try:
                 if config.required_symbols_min == 0 and not symbols:  # Handle /noticias without ticker
                     query = config.query_template
-                    logger.debug("Using template without symbols")
+                    logger.debug(f"Using template without symbols for user {user_id}")
 
                 elif config.required_symbols_min == 1 and len(symbols) == 1:
                     query = config.query_template.format(symbol=symbols[0])
-                    logger.debug(f"Formatted query with single symbol: {symbols[0]}")
+                    logger.debug(f"Formatted query with single symbol: {symbols[0]} for user {user_id}")
 
                 elif config.required_symbols_min >= 2 and len(symbols) >= 2:
                     query = config.query_template.format(symbols=" ".join(symbols))
-                    logger.debug(f"Formatted query with multiple symbols: {symbols}")
+                    logger.debug(f"Formatted query with multiple symbols: {symbols} for user {user_id}")
 
                 else:
                     query = config.query_template  # Fallback
-                    logger.debug("Using template as fallback")
+                    logger.debug(f"Using template as fallback for user {user_id}")
 
-                logger.info(f"Executing query: {query}")
+                logger.info(f"Executing query for user {user_id}: {query}")
                 await progress.update_text("Procesando datos")
                 response_text = await get_agent_response(config.agent, query, progress)
-                logger.debug(f"Response length: {len(response_text)} characters")
+                logger.debug(f"Response length for user {user_id}: {len(response_text)} characters")
 
             except IndexError:
-                logger.error(f"Index error processing symbols: {symbols}")
+                logger.error(f"Index error processing symbols for user {user_id}: {symbols}")
                 response_text = "Che, algo salió mal con los tickers. Asegurate de mandarlos bien."
             except KeyError as e:
-                logger.error(f"Key error in template formatting: {str(e)}")
+                logger.error(f"Key error in template formatting for user {user_id}: {str(e)}")
                 response_text = f"Error en el formato: {str(e)}. Usá el ejemplo del comando."
         else:
-            logger.warning(f"No query template defined for command: {command}")
+            logger.warning(f"No query template defined for command: {command} from user {user_id}")
             response_text = "Comando no implementado correctamente, che."
 
         # Stop progress indicator and send response
         await progress.stop()
         await update.message.reply_text(response_text)
-        logger.info(f"Command '{command}' completed for user {user_id}")
+        
+        # Log the bot's response
+        execution_time = time.time() - start_time
+        log_bot_response(user_id, command, response_text, execution_time)
 
     except Exception as e:
-        logger.error(f"Unexpected error in handle_command: {str(e)}")
+        logger.error(f"Unexpected error in handle_command for user {user_id}: {str(e)}")
         await progress.stop()
         await update.message.reply_text("Ups, algo salió mal. Intentá de nuevo más tarde.")
 
