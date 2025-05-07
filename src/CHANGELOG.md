@@ -1,3 +1,12 @@
+## 0.2.6 (2025-05-07)
+
+### Fix
+
+- use func prompt
+- include useful funtions prompt
+- update yfinance api
+- technical function prompt
+
 ## 0.2.5 (2025-05-04)
 
 ### Fix
