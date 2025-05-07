@@ -46,13 +46,13 @@ COMMANDS = {
     "precio": CommandConfig(
         description="Get current stock price",
         agent=agents["general"],
-        query_template="Dame el precio actual del ticker: {symbol}",
+        query_template="Dame el precio actual del ticker (symbol): {symbol}",
         no_args_message="Por favor, especificá el símbolo de la acción. Ejemplo: /precio $AAPL"
     ),
     "noticias": CommandConfig(
         description="Get company or market news",
         agent=agents["general"],
-        query_template="Dame un resumen de las últimas noticias del ticker: {symbol}",
+        query_template="Dame un resumen de las últimas noticias del ticker (symbol): {symbol}",
         requires_symbol=True,
         required_symbols_min=1,
         no_args_message=None
@@ -70,6 +70,7 @@ COMMANDS = {
         description="Get technical analysis",
         agent=agents["technical"],
         query_template="""Dame el resumen de los análisis técnicos del ticker: {symbol} usando los siguientes parámetros:
+        - symbol: {symbol}
         - period: 1y
         - interval: 1d""",
         requires_symbol=True,
@@ -79,6 +80,7 @@ COMMANDS = {
         description="Get fundamental analysis",
         agent=agents["fundamental"],
         query_template="""Dame el resumen detallado de análisis fundamental del ticker: {symbol} usando los siguientes parámetros:
+        - symbol: {symbol}
         - period: 1y
         - interval: 1d""",
         requires_symbol=True,
