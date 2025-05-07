@@ -1,6 +1,8 @@
 import os
 import json
 import logging
+import asyncio
+import time
 from telegram.helpers import escape_markdown
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
@@ -9,6 +11,7 @@ from agno.agent import Agent
 from agents_utils import create_financial_agent
 from agents_utils import DEFAULT_RESPONSE, WELCOME_MESSAGE, PARSE_MODE
 from commands import CommandConfig, COMMANDS
+from progress_indicator import ProgressIndicator
 
 #----------------------------------------------------------------------------
 
@@ -47,10 +50,12 @@ def extract_symbol(text: str) -> str:
 
 #----------------------------------------------------------------------------
 
-async def get_agent_response(agent: Agent, query: str) -> str:
+async def get_agent_response(agent: Agent, query: str, progress: ProgressIndicator = None) -> str:
     """Runs a query through the financial agent and returns the response."""
     try:
         logger.info(f"Running agent query: {query}")
+        if progress:
+            await progress.update_text("Consultando datos financieros")
         response = agent.run(query)
         logger.debug(f"Agent response received: {response.content[:100]}...")
         return response.content if hasattr(response, "content") else str(response)
@@ -140,70 +145,84 @@ async def handle_command(update: Update, context: ContextTypes.DEFAULT_TYPE, con
         await update.message.reply_text("Che, estás haciendo muchas consultas. Esperá un minuto y volvé a intentar.")
         return
     
-    # Show typing indicator
-    await update.message.chat.send_action(action="typing")
+    # Initialize progress indicator
+    progress = ProgressIndicator(update, context)
+    await progress.start("Iniciando análisis")
     
-    if config.agent is None:  # Special case for /start and /help
-        logger.debug(f"Handling special command: {command}")
-        if update.message.text.startswith("/help"):
-            await help_command(update, context)
-        else:
-            await update.message.reply_text(WELCOME_MESSAGE)
-        return
-
-    query = None
-    args = " ".join(context.args) if context.args else ""
-    symbols = [extract_symbol(arg) for arg in context.args if extract_symbol(arg)] if args else []
-
-    logger.info(f"Command: {config.description}, Extracted Symbols: {symbols}, Len Symbols: {len(symbols)}")
-
-    # Validate symbol count
-    if config.requires_symbol:
-        if len(symbols) < config.required_symbols_min:
-            message = f"Che, mandaste pocos tickers. Necesito al menos {config.required_symbols_min}. Ejemplo: /{update.message.text.split()[0][1:]} {' '.join(['$SYM'] * config.required_symbols_min)}"
-            logger.warning(f"Invalid symbol count for user {user_id}: {len(symbols)} < {config.required_symbols_min}")
-            await update.message.reply_text(message)
-            return
-        if config.required_symbols_max and len(symbols) > config.required_symbols_max:
-            message = f"Che, mandaste demasiados tickers. Máximo {config.required_symbols_max}."
-            logger.warning(f"Too many symbols for user {user_id}: {len(symbols)} > {config.required_symbols_max}")
-            await update.message.reply_text(message)
-            return
-        
-    if config.query_template:
-        try:
-            if config.required_symbols_min == 0 and not symbols:  # Handle /noticias without ticker
-                query = config.query_template
-                logger.debug("Using template without symbols")
-
-            elif config.required_symbols_min == 1 and len(symbols) == 1:
-                query = config.query_template.format(symbol=symbols[0])
-                logger.debug(f"Formatted query with single symbol: {symbols[0]}")
-
-            elif config.required_symbols_min >= 2 and len(symbols) >= 2:
-                query = config.query_template.format(symbols=" ".join(symbols))
-                logger.debug(f"Formatted query with multiple symbols: {symbols}")
-
+    try:
+        if config.agent is None:  # Special case for /start and /help
+            logger.debug(f"Handling special command: {command}")
+            if update.message.text.startswith("/help"):
+                await progress.stop()
+                await help_command(update, context)
             else:
-                query = config.query_template  # Fallback
-                logger.debug("Using template as fallback")
+                await progress.stop()
+                await update.message.reply_text(WELCOME_MESSAGE)
+            return
 
-            logger.info(f"Executing query: {query}")
-            response_text = await get_agent_response(config.agent, query)
-            logger.debug(f"Response length: {len(response_text)} characters")
+        query = None
+        args = " ".join(context.args) if context.args else ""
+        symbols = [extract_symbol(arg) for arg in context.args if extract_symbol(arg)] if args else []
 
-        except IndexError:
-            logger.error(f"Index error processing symbols: {symbols}")
-            response_text = "Che, algo salió mal con los tickers. Asegurate de mandarlos bien."
-        except KeyError as e:
-            logger.error(f"Key error in template formatting: {str(e)}")
-            response_text = f"Error en el formato: {str(e)}. Usá el ejemplo del comando."
-    else:
-        logger.warning(f"No query template defined for command: {command}")
-        response_text = "Comando no implementado correctamente, che."
+        logger.info(f"Command: {config.description}, Extracted Symbols: {symbols}, Len Symbols: {len(symbols)}")
 
-    await update.message.reply_text(response_text)
-    logger.info(f"Command '{command}' completed for user {user_id}")
+        # Validate symbol count
+        if config.requires_symbol:
+            if len(symbols) < config.required_symbols_min:
+                message = f"Che, mandaste pocos tickers. Necesito al menos {config.required_symbols_min}. Ejemplo: /{update.message.text.split()[0][1:]} {' '.join(['$SYM'] * config.required_symbols_min)}"
+                logger.warning(f"Invalid symbol count for user {user_id}: {len(symbols)} < {config.required_symbols_min}")
+                await progress.stop()
+                await update.message.reply_text(message)
+                return
+            if config.required_symbols_max and len(symbols) > config.required_symbols_max:
+                message = f"Che, mandaste demasiados tickers. Máximo {config.required_symbols_max}."
+                logger.warning(f"Too many symbols for user {user_id}: {len(symbols)} > {config.required_symbols_max}")
+                await progress.stop()
+                await update.message.reply_text(message)
+                return
+        
+        if config.query_template:
+            try:
+                if config.required_symbols_min == 0 and not symbols:  # Handle /noticias without ticker
+                    query = config.query_template
+                    logger.debug("Using template without symbols")
+
+                elif config.required_symbols_min == 1 and len(symbols) == 1:
+                    query = config.query_template.format(symbol=symbols[0])
+                    logger.debug(f"Formatted query with single symbol: {symbols[0]}")
+
+                elif config.required_symbols_min >= 2 and len(symbols) >= 2:
+                    query = config.query_template.format(symbols=" ".join(symbols))
+                    logger.debug(f"Formatted query with multiple symbols: {symbols}")
+
+                else:
+                    query = config.query_template  # Fallback
+                    logger.debug("Using template as fallback")
+
+                logger.info(f"Executing query: {query}")
+                await progress.update_text("Procesando datos")
+                response_text = await get_agent_response(config.agent, query, progress)
+                logger.debug(f"Response length: {len(response_text)} characters")
+
+            except IndexError:
+                logger.error(f"Index error processing symbols: {symbols}")
+                response_text = "Che, algo salió mal con los tickers. Asegurate de mandarlos bien."
+            except KeyError as e:
+                logger.error(f"Key error in template formatting: {str(e)}")
+                response_text = f"Error en el formato: {str(e)}. Usá el ejemplo del comando."
+        else:
+            logger.warning(f"No query template defined for command: {command}")
+            response_text = "Comando no implementado correctamente, che."
+
+        # Stop progress indicator and send response
+        await progress.stop()
+        await update.message.reply_text(response_text)
+        logger.info(f"Command '{command}' completed for user {user_id}")
+
+    except Exception as e:
+        logger.error(f"Unexpected error in handle_command: {str(e)}")
+        await progress.stop()
+        await update.message.reply_text("Ups, algo salió mal. Intentá de nuevo más tarde.")
 
 #----------------------------------------------------------------------------
 
